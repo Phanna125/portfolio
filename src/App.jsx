@@ -1,9 +1,21 @@
-import { useState, useRef, useMemo, useEffect, Suspense } from 'react'
+import { useState, useRef, useMemo, useEffect, Suspense, useCallback } from 'react'
 import { Canvas, useFrame, useLoader } from '@react-three/fiber'
 import { Float, Environment, ContactShadows, Points, PointMaterial, useGLTF, Html, RoundedBox, Text } from '@react-three/drei'
 import { User, Mail, ShoppingCart, Award, Monitor, ExternalLink } from 'lucide-react'
 import * as THREE from 'three'
 import './index.css'
+
+// ─── Mobile Detection Hook ─────────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  return isMobile
+}
 
 import Spline from '@splinetool/react-spline';
 
@@ -152,11 +164,10 @@ function TechEnergyCore({ position, scale, onClick, onPointerOver, onPointerOut 
 }
 
 function SplineRobotModel() {
-  // Instead of parsing the Spline file into Three.js primitives (which crashes),
-  // we embed the official Spline React component within the 3D scene using Drei's Html.
+  const isMobile = useIsMobile()
   return (
-    <Html transform position={[0, -0.5, 0]} scale={0.5} zIndexRange={[5, 0]}>
-      <div style={{ width: '800px', height: '800px', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
+    <Html transform position={[0, -0.5, 0]} scale={isMobile ? 0.3 : 0.5} zIndexRange={[5, 0]}>
+      <div style={{ width: isMobile ? '400px' : '800px', height: isMobile ? '400px' : '800px', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
         <Spline scene="https://prod.spline.design/ifwJfSH-kdl2oh5D/scene.splinecode" />
       </div>
     </Html>
@@ -212,6 +223,7 @@ function HamburgerMenu() {
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
       scale={0.4}
+      visible={false}
     >
       <mesh material={material} position={[0, 0.4, 0]}>
         <capsuleGeometry args={[0.2, 1, 4, 16]} rotation={[0, 0, Math.PI / 2]} />
@@ -316,26 +328,47 @@ function IconBox({ position, rotation, item, onClick }) {
 function OrbitingIcons({ onIconClick }) {
   const groupRef = useRef()
   const rotationRef = useRef(0)
+  const touchStartRef = useRef(null)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const handleWheel = (e) => {
-      // Update rotation based on scroll amount
       rotationRef.current += e.deltaY * 0.005;
     }
 
+    // Touch support for mobile
+    const handleTouchStart = (e) => {
+      touchStartRef.current = e.touches[0].clientX;
+    }
+    const handleTouchMove = (e) => {
+      if (touchStartRef.current !== null) {
+        const delta = e.touches[0].clientX - touchStartRef.current;
+        rotationRef.current += delta * 0.008;
+        touchStartRef.current = e.touches[0].clientX;
+      }
+    }
+    const handleTouchEnd = () => {
+      touchStartRef.current = null;
+    }
+
     window.addEventListener('wheel', handleWheel);
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd);
 
     return () => {
       window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
     }
   }, []);
 
   useFrame((state, delta) => {
-    // Smoothly interpolate to the target rotation
     groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, rotationRef.current, 0.1)
   })
 
-  const radius = 1.6;
+  const radius = isMobile ? 1.2 : 1.6;
 
   return (
     <group>
@@ -354,10 +387,12 @@ function OrbitingIcons({ onIconClick }) {
 function CentralCharacter({ isZoomedIn, onGemClick, onIconClick }) {
   const group = useRef()
   const mouse = useRef({ x: 0, y: 0 })
+  const isMobile = useIsMobile()
 
   useFrame((state) => {
-    const targetX = isZoomedIn ? 0 : (state.mouse.x * Math.PI) / 8;
-    const targetY = isZoomedIn ? 0 : (state.mouse.y * Math.PI) / 8;
+    // Disable parallax on mobile (no mouse hover)
+    const targetX = (isZoomedIn || isMobile) ? 0 : (state.mouse.x * Math.PI) / 8;
+    const targetY = (isZoomedIn || isMobile) ? 0 : (state.mouse.y * Math.PI) / 8;
 
     mouse.current.x = THREE.MathUtils.lerp(mouse.current.x, targetX, 0.1)
     mouse.current.y = THREE.MathUtils.lerp(mouse.current.y, targetY, 0.1)
@@ -365,13 +400,16 @@ function CentralCharacter({ isZoomedIn, onGemClick, onIconClick }) {
     group.current.rotation.x = -mouse.current.y
   })
 
+  const coreScale = isMobile ? 1.6 : 1.2
+  const groupScale = isMobile ? 1.6 : 2
+
   return (
-    <group ref={group} position={[0, -1, 0]} scale={2}>
+    <group ref={group} position={[0, -1, 0]} scale={groupScale}>
       {/* Tech Energy Core */}
       <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
         <TechEnergyCore
           position={[0, -0.5, 0.8]}
-          scale={1.2}
+          scale={coreScale}
           onClick={(e) => {
             e.stopPropagation();
             onGemClick();
@@ -430,6 +468,7 @@ function App() {
     <>
       {/* Put Official Spline at the very absolute, furthest background */}
       <div
+        className="spline-bg"
         style={{
           position: 'absolute',
           top: 0,
