@@ -554,7 +554,11 @@ function App() {
 
   const handleIconClick = (id) => {
     if (id === 'about') setShowAbout(true)
-    else if (id === 'contact') window.location.href = 'mailto:hello@phalphanna.com'
+    else if (id === 'contact') {
+      const subject = encodeURIComponent("Project Inquiry - Let's Work Together!");
+      const body = encodeURIComponent("Hi Phanna,\n\nI saw your portfolio and I'm interested in discussing a potential project with you.\n\n[Please provide a brief description of your project here...]\n\nLooking forward to connecting!\n\nBest regards,\n[Your Name/Company]");
+      window.location.href = `mailto:tat38254@gmail.com?subject=${subject}&body=${body}`;
+    }
     else if (id === 'resume') setShowResume(true)
     else if (id === 'projects') setShowProjects(true)
     else console.log("Clicked:", id) // Handle other actions if needed
