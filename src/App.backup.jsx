@@ -366,8 +366,8 @@ function App() {
         )}
 
         <div className="bottom-bar">
-          <div>ALANNN.ART</div>
-          <div>ALL RIGHTS RESERVED®</div>
+          <div>winjiang.art</div>
+          <div>ផាន់ណាស្មោះស្នេហ៏®</div>
         </div>
       </div>
     </>

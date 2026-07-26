@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect, Suspense, useCallback } from 'react'
 import { Canvas, useFrame, useLoader } from '@react-three/fiber'
-import { Float, Environment, ContactShadows, Points, PointMaterial, useGLTF, Html, RoundedBox, Text } from '@react-three/drei'
+import { Float, Environment, ContactShadows, Points, PointMaterial, useGLTF, useTexture, Html, RoundedBox, Text } from '@react-three/drei'
 import { User, Mail, ShoppingCart, Award, Monitor, ExternalLink } from 'lucide-react'
 import * as THREE from 'three'
 import './index.css'
@@ -18,6 +18,55 @@ function useIsMobile() {
 }
 
 import Spline from '@splinetool/react-spline';
+
+// ─── iPhone 17 Pro Max Model Component ───────────────────────────────────────
+function IphoneModel({ position, scale, onClick, onPointerOver, onPointerOut }) {
+  const { scene } = useGLTF('/model/iphone_17_pro_max_silver.glb')
+  const wallpaperTexture = useTexture('/pic/wallpapaer.png')
+  const modelRef = useRef()
+
+  useEffect(() => {
+    if (wallpaperTexture) {
+      wallpaperTexture.flipY = false
+      wallpaperTexture.colorSpace = THREE.SRGBColorSpace
+      wallpaperTexture.needsUpdate = true
+    }
+  }, [wallpaperTexture])
+
+  useFrame((state, delta) => {
+    if (modelRef.current) {
+      // Continuous slow 360-degree Y rotation
+      modelRef.current.rotation.y += delta * 0.35
+    }
+  })
+
+  const clonedScene = useMemo(() => {
+    const cloned = scene.clone()
+    cloned.traverse((child) => {
+      if (child.isMesh && (child.material?.name === '17ProMax_Screen' || child.name === 'Object_13')) {
+        child.material = new THREE.MeshBasicMaterial({
+          map: wallpaperTexture,
+        })
+      }
+    })
+    return cloned
+  }, [scene, wallpaperTexture])
+
+  return (
+    <primitive
+      ref={modelRef}
+      object={clonedScene}
+      position={position}
+      scale={scale}
+      onClick={onClick}
+      onPointerOver={onPointerOver}
+      onPointerOut={onPointerOut}
+    />
+  )
+}
+
+useGLTF.preload('/model/iphone_17_pro_max_silver.glb')
+useTexture.preload('/pic/wallpapaer.png')
 
 // ─── Tech Energy Core Component ───────────────────────────────────────────────
 function SpinningRing({ radius, tubeRadius, color, speed, tiltX, tiltZ }) {
@@ -163,12 +212,39 @@ function TechEnergyCore({ position, scale, onClick, onPointerOver, onPointerOut 
   )
 }
 
+// ─── Spline Error Boundary ───────────────────────────────────────────────────
+import React from 'react'
+
+class SplineErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.warn("Spline runtime timeline notice caught:", error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null
+    }
+    return this.props.children
+  }
+}
+
 function SplineRobotModel() {
   const isMobile = useIsMobile()
   return (
     <Html transform position={[0, -0.5, 0]} scale={isMobile ? 0.3 : 0.5} zIndexRange={[5, 0]}>
       <div style={{ width: isMobile ? '400px' : '800px', height: isMobile ? '400px' : '800px', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}>
-        <Spline scene="https://prod.spline.design/ifwJfSH-kdl2oh5D/scene.splinecode" />
+        <SplineErrorBoundary>
+          <Spline scene="https://prod.spline.design/ifwJfSH-kdl2oh5D/scene.splinecode" onError={(err) => console.warn('Spline load info:', err)} />
+        </SplineErrorBoundary>
       </div>
     </Html>
   );
@@ -249,7 +325,7 @@ function TopLeftMask() {
   const blackMat = new THREE.MeshStandardMaterial({ color: '#000000', roughness: 0.1, metalness: 0.9 })
 
   return (
-    <group ref={group} position={[-5, 3.5, -4]} scale={0.5}>
+    <group ref={group} position={[-5.5, 3.8, -4]} scale={0.3}>
       <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
         <mesh material={whiteMat}>
           <sphereGeometry args={[1, 32, 32, 0, Math.PI * 2, 0, Math.PI * 0.7]} />
@@ -275,9 +351,10 @@ function TopLeftMask() {
 
 // Camera behavior
 function CameraRig({ isZoomedIn }) {
+  const isMobile = useIsMobile()
   useFrame((state) => {
-    const targetZ = isZoomedIn ? 8.5 : 10;
-    const targetY = isZoomedIn ? -2.0 : 0;
+    const targetZ = isZoomedIn ? (isMobile ? 7.2 : 6.5) : (isMobile ? 8.0 : 7.5);
+    const targetY = isZoomedIn ? (isMobile ? -0.1 : -0.2) : 0;
 
     state.camera.position.z = THREE.MathUtils.lerp(state.camera.position.z, targetZ, 0.05);
     state.camera.position.y = THREE.MathUtils.lerp(state.camera.position.y, targetY, 0.05);
@@ -297,6 +374,7 @@ const ICONS = [
 
 function IconBox({ position, rotation, item, onClick }) {
   const [hovered, setHovered] = useState(false)
+  const isMobile = useIsMobile()
 
   return (
     <group
@@ -306,17 +384,17 @@ function IconBox({ position, rotation, item, onClick }) {
       onPointerOver={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
       onPointerOut={(e) => { e.stopPropagation(); setHovered(false); document.body.style.cursor = 'auto'; }}
     >
-      <RoundedBox args={[0.5, 0.5, 0.1]} radius={0.1}>
-        <meshStandardMaterial color={hovered ? "#333" : "#111"} roughness={0.2} metalness={0.8} />
+      <RoundedBox args={[0.28, 0.28, 0.06]} radius={0.06}>
+        <meshStandardMaterial color={(hovered || isMobile) ? "#444" : "#111"} roughness={0.2} metalness={0.8} />
       </RoundedBox>
-      <Html position={[0, 0, 0.06]} transform zIndexRange={[10, 0]} distanceFactor={1.5} style={{ pointerEvents: 'none' }}>
+      <Html position={[0, 0, 0.04]} transform zIndexRange={[10, 0]} distanceFactor={1.2} style={{ pointerEvents: 'none' }}>
         <div style={{ color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <item.Icon size={32} />
+          <item.Icon size={18} />
         </div>
       </Html>
-      {hovered && (
-        <Html position={[0, -0.4, 0.05]} center zIndexRange={[100, 0]}>
-          <div style={{ background: 'rgba(0,0,0,0.8)', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', pointerEvents: 'none', letterSpacing: '1px' }}>
+      {(hovered || isMobile) && (
+        <Html position={[0, -0.25, 0.04]} center zIndexRange={[100, 0]}>
+          <div style={{ background: 'rgba(0,0,0,0.85)', color: 'white', padding: '3px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 'bold', pointerEvents: 'none', letterSpacing: '1px', whiteSpace: 'nowrap' }}>
             {item.label}
           </div>
         </Html>
@@ -368,7 +446,7 @@ function OrbitingIcons({ onIconClick }) {
     groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, rotationRef.current, 0.1)
   })
 
-  const radius = isMobile ? 1.2 : 1.6;
+  const radius = isMobile ? 1.2 : 1.3;
 
   return (
     <group>
@@ -400,16 +478,16 @@ function CentralCharacter({ isZoomedIn, onGemClick, onIconClick }) {
     group.current.rotation.x = -mouse.current.y
   })
 
-  const coreScale = isMobile ? 1.6 : 1.2
-  const groupScale = isMobile ? 1.6 : 2
+  const phoneScale = isMobile ? 4.2 : 4.8
+  const groupScale = isMobile ? 1.5 : 1.8
 
   return (
-    <group ref={group} position={[0, -1, 0]} scale={groupScale}>
-      {/* Tech Energy Core */}
+    <group ref={group} position={[0, -0.4, 0]} scale={groupScale}>
+      {/* iPhone 17 Pro Max 3D Model */}
       <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
-        <TechEnergyCore
-          position={[0, -0.5, 0.8]}
-          scale={coreScale}
+        <IphoneModel
+          position={[0, 0, 0]}
+          scale={phoneScale}
           onClick={(e) => {
             e.stopPropagation();
             onGemClick();
@@ -427,24 +505,75 @@ function CentralCharacter({ isZoomedIn, onGemClick, onIconClick }) {
   )
 }
 
+const PROJECTS_DATA = [
+  {
+    id: 'et-form',
+    title: 'ET-Form UI',
+    img: '/pic/et_form.jpg',
+    shortDesc: 'A secure educational form and exam platform designed to help institutions create, manage, and proctor forms, surveys, and exams...',
+    detailDesc: 'ET-Form UI is a secure educational platform designed to help institutions create, manage, and proctor forms, surveys, and exams. It uses a modern visual builder and incorporates advanced anti-cheating features along with real-time scoring. The robust client-side architecture leverages TypeScript and React for a seamless educational experience.',
+    url: 'https://et-form-ui.vercel.app/'
+  },
+  {
+    id: 'flamer-chef',
+    title: 'Flamer Chef',
+    img: '/pic/flamer_chef.jpg',
+    shortDesc: 'A web application designed to help users search, organize, and prepare authentic Cambodian dishes...',
+    detailDesc: 'Flamer Chef is a state-of-the-art web application dedicated to Cambodian cuisine. It helps users search, organize, and prepare authentic dishes using ingredients they already have in their kitchen. By utilizing a Smart Fridge Match Engine, it reduces food waste and brings traditional Cambodian recipes to a modern bilingual platform.',
+    url: 'https://flamer-chef.vercel.app/'
+  },
+  {
+    id: 'wit',
+    title: 'WiT',
+    img: '/pic/wit_wedding.jpg',
+    shortDesc: 'A premium, minimalist wedding orchestration platform built with a high-end web 3D/interactive stack...',
+    detailDesc: 'WiT is a premium, minimalist wedding orchestration platform designed to block planning noise and help you find your rhythm. Built with a high-end web 3D and interactive stack (React Three Fiber, GSAP), it provides an elegant dashboard for managing guest lists, schedules, and more.',
+    url: 'https://wedivitetech.vercel.app/'
+  }
+];
+
 function App() {
   const [isZoomedIn, setIsZoomedIn] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+  const [showResume, setShowResume] = useState(false)
+  const [showProjects, setShowProjects] = useState(false)
+  const [expandedProject, setExpandedProject] = useState(null)
+  const isMobile = useIsMobile()
 
   const handleGemClick = () => {
-    setIsZoomedIn(true)
+    setIsZoomedIn((prev) => !prev)
   }
 
   const handleBack = () => {
     setIsZoomedIn(false)
     setShowAbout(false)
+    setShowResume(false)
+    setShowProjects(false)
+    setExpandedProject(null)
   }
 
   const handleIconClick = (id) => {
     if (id === 'about') setShowAbout(true)
     else if (id === 'contact') window.location.href = 'mailto:hello@phalphanna.com'
+    else if (id === 'resume') setShowResume(true)
+    else if (id === 'projects') setShowProjects(true)
     else console.log("Clicked:", id) // Handle other actions if needed
   }
+
+  // Suppress asynchronous Spline timeline notices (Missing property)
+  useEffect(() => {
+    const handleGlobalError = (event) => {
+      const msg = event?.message || event?.error?.message || ''
+      if (typeof msg === 'string' && msg.includes('Missing property')) {
+        if (event.preventDefault) event.preventDefault()
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation()
+        console.warn('Spline internal timeline notice gracefully handled.')
+        return true
+      }
+    }
+    window.addEventListener('error', handleGlobalError, true)
+    return () => window.removeEventListener('error', handleGlobalError, true)
+  }, [])
 
   // Remove Spline watermark
   useEffect(() => {
@@ -483,7 +612,12 @@ function App() {
         }}
       >
         <div style={{ width: '100%', height: 'calc(100% + 50px)' }}>
-          <Spline scene="https://prod.spline.design/ifwJfSH-kdl2oh5D/scene.splinecode" />
+          <SplineErrorBoundary>
+            <Spline
+              scene="https://prod.spline.design/ifwJfSH-kdl2oh5D/scene.splinecode"
+              onError={(err) => console.warn('Spline background scene notice:', err)}
+            />
+          </SplineErrorBoundary>
         </div>
       </div>
 
@@ -541,13 +675,15 @@ function App() {
           <Stars />
           <TopLeftMask />
 
-          <Float speed={1.5} rotationIntensity={0.1} floatIntensity={0.2}>
-            <CentralCharacter
-              isZoomedIn={isZoomedIn}
-              onGemClick={handleGemClick}
-              onIconClick={handleIconClick}
-            />
-          </Float>
+          <Suspense fallback={null}>
+            <Float speed={1.5} rotationIntensity={0.1} floatIntensity={0.2}>
+              <CentralCharacter
+                isZoomedIn={isZoomedIn}
+                onGemClick={handleGemClick}
+                onIconClick={handleIconClick}
+              />
+            </Float>
+          </Suspense>
 
           <Environment preset="city" />
           <ContactShadows position={[0, -4.5, 0]} opacity={0.5} scale={20} blur={2} far={4.5} />
@@ -577,7 +713,111 @@ function App() {
           </div>
         )}
 
-        {isZoomedIn && !showAbout && (
+        {showResume && (
+          <div className="resume-overlay">
+            <div className="resume-header">
+              <h2>PHAL PHANNA</h2>
+              <h3>Y-2 ITE-Student</h3>
+              <div className="resume-contact">
+                <span>+855884557187</span>
+                <span>+855965345304</span>
+                <span>Tat38254@gmail.com</span>
+                <span>Phnom Penh</span>
+              </div>
+            </div>
+            
+            <div className="resume-section">
+              <h4>ABOUT ME</h4>
+              <p style={{color: '#ddd', lineHeight: '1.6'}}>Ambitious and highly adaptable Year 2 IT-Engineering student with a deep fascination for technological development and a natural aptitude for leadership. Combines a solid technical foundation with creative problem-solving skills and a strong commitment to community impact through volunteering. Eager to leverage a diverse skill set—spanning tech journalism, UI/UX design, and IT engineering—to drive sustainable, impactful solutions.</p>
+            </div>
+
+            <div className="resume-section">
+              <h4>EDUCATION</h4>
+              <div className="resume-item">
+                <div className="resume-item-title">Royal University of Phnom Penh (RUPP)</div>
+                <div className="resume-item-subtitle">Bachelor of Science in IT-Engineering | 2024 – Present (Currently Year 2)</div>
+              </div>
+              <div className="resume-item">
+                <div className="resume-item-title">Bunrany Hunsen Memot High School</div>
+                <div className="resume-item-subtitle">High School Diploma (Grade: B) | Graduated: 2024</div>
+              </div>
+            </div>
+
+            <div className="resume-section">
+              <h4>EXPERIENCE</h4>
+              <div className="resume-item">
+                <div className="resume-item-title">Hackathon Competitor</div>
+                <div className="resume-item-subtitle">AI Hackathon by First Wave | July 2026</div>
+                <ul className="resume-list">
+                  <li>Conceptualized and deployed a frictionless multimodal AI copilot designed to visually analyze stagnant business inventory and instantly generate optimized marketing strategies.</li>
+                  <li>Utilized rapid development workflows, leveraging the Gemini 2.5 Flash API and Streamlit to build a functional end-to-end prototype under a strict weekend deadline.</li>
+                </ul>
+              </div>
+              <div className="resume-item">
+                <div className="resume-item-title">Volunteer Data Entry Assistant</div>
+                <div className="resume-item-subtitle">MoEYS EdTech App | 2025</div>
+                <ul className="resume-list">
+                  <li>Inputted, managed, and organized educational data within the official Ministry of Education, Youth and Sport (MoEYS) EdTech application.</li>
+                  <li>Played a hands-on role in ensuring the accuracy and digital accessibility of learning resources for Cambodian students.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="resume-section">
+              <h4>SKILLS</h4>
+              <ul className="resume-list">
+                <li><strong>Innovation:</strong> Design Thinking, Product Ideation, Creative Problem Solving, Rapid Prototyping.</li>
+                <li><strong>Technical Skills:</strong> IT-Engineering Fundamentals, UI/UX Design, Visual Hierarchy, AI using, C/C++, Java, Python, GitHub.</li>
+                <li><strong>Communication:</strong> Technical Writing, Active Listener, Dedicated to continuous improvement.</li>
+                <li><strong>Soft Skills:</strong> Natural Leadership, High Adaptability, Patience, Focus, Goal-Oriented.</li>
+              </ul>
+            </div>
+
+            <div className="resume-actions">
+              <a href="/PhannaCV.pdf" target="_blank" rel="noopener noreferrer" className="download-btn">📄 DOWNLOAD PDF</a>
+              <button className="close-btn" onClick={() => setShowResume(false)}>CLOSE</button>
+            </div>
+          </div>
+        )}
+
+        {showProjects && (
+          <div className="projects-overlay">
+            <h2>MY PROJECTS</h2>
+            
+            {expandedProject ? (
+              <div className="expanded-project-view">
+                <img src={expandedProject.img} alt={expandedProject.title} className="expanded-project-image" />
+                <div className="expanded-project-content">
+                  <h3>{expandedProject.title}</h3>
+                  <p>{expandedProject.detailDesc}</p>
+                  <div className="expanded-project-actions">
+                    <button className="back-btn" onClick={() => setExpandedProject(null)}>← BACK TO PROJECTS</button>
+                    <a href={expandedProject.url} target="_blank" rel="noopener noreferrer" className="project-link large-link">VISIT WEBSITE</a>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="projects-grid">
+                {PROJECTS_DATA.map(proj => (
+                  <div key={proj.id} className="project-card" onClick={() => setExpandedProject(proj)}>
+                    <img src={proj.img} alt={proj.title} className="project-image" />
+                    <h3>{proj.title}</h3>
+                    <p>{proj.shortDesc}</p>
+                    <span className="read-more-btn">Read More →</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!expandedProject && (
+              <div className="resume-actions">
+                <button className="close-btn" onClick={() => setShowProjects(false)}>CLOSE</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isZoomedIn && !showAbout && !showResume && !showProjects && (
           <button className="back-button" onClick={handleBack}>↩ BACK</button>
         )}
 
